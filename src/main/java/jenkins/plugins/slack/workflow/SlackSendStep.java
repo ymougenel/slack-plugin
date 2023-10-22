@@ -7,6 +7,7 @@ import hudson.AbortException;
 import hudson.Extension;
 import hudson.Util;
 import hudson.model.Item;
+import hudson.model.Result;
 import hudson.model.Run;
 import hudson.model.TaskListener;
 import hudson.util.ListBoxModel;
@@ -290,7 +291,6 @@ public class SlackSendStep extends Step {
             Run run = getContext().get(Run.class);
             TaskListener listener = getContext().get(TaskListener.class);
             Objects.requireNonNull(listener, "Listener is mandatory here");
-
             listener.getLogger().println(Messages.slackSendStepValues(
                     defaultIfEmpty(baseUrl), defaultIfEmpty(teamDomain), channel, defaultIfEmpty(color), botUser,
                     defaultIfEmpty(tokenCredentialId), notifyCommitters, defaultIfEmpty(iconEmoji), defaultIfEmpty(username), defaultIfEmpty(step.timestamp))
@@ -361,6 +361,10 @@ public class SlackSendStep extends Step {
             } else {
                 listener.error(Messages
                         .notificationFailedWithException(new IllegalArgumentException("No message, attachments or blocks provided")));
+                if (step.isFailOnError()) {
+                    run.setResult(Result.FAILURE);
+                    throw new AbortException("No message, attachments or blocks provided");
+                }
                 return null;
             }
             SlackResponse response = null;
@@ -373,6 +377,7 @@ public class SlackSendStep extends Step {
                     } catch (org.json.JSONException ex) {
                         listener.error(Messages.failedToParseSlackResponse(responseString));
                         if (step.failOnError) {
+                            run.setResult(Result.FAILURE);
                             throw ex;
                         }
                     }
@@ -380,6 +385,7 @@ public class SlackSendStep extends Step {
                     return new SlackResponse(slackService);
                 }
             } else if (step.failOnError) {
+                run.setResult(Result.FAILURE);
                 if (responseString != null) {
                     throw new AbortException(Messages.notificationFailedWithException(responseString));
                 }
